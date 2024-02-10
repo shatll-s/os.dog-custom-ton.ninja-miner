@@ -27,7 +27,6 @@ args=$ADDITION
 [[ "$ADDITION" != *"-url"* && $POOL ]] && args+=" -url $POOL"
 [[ "$ADDITION" != *"-serve-stat"* ]] && args+=" -serve-stat"
 
-pool-id
 batch="./miningPoolCli $args"
 $LINE
 echo -e "${GREEN}> Starting custom miner${WHITE}"

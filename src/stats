@@ -6,7 +6,7 @@
 ###
 ####################################################################################
 
-#	example
+#   example
 #
 #	{
 #		"miner":"lolminer",
@@ -16,34 +16,82 @@
 #		"total_share":"1",
 #		"total_badshare":"0",
 #		"ver":"1.82a",
-#		"temp":[31,28,29,29,31,29,30,30],
-#		"temp2":[38,35,35,35,37,34,37,37],
-#		"temp3":[0,0,0,0,0,0,0,0],
-#		"fan":[45,45,44,45,44,44,45,46],
 #		"hr":[11580000,27740000,0,0,2990000,0,22650000,6880000],
 #		"share":[0,1,0,0,0,0,0,0],
 #		"badshare":[0,0,0,0,0,0,0,0],
 #		"invshare":[0,0,0,0,0,0,0,0],
 #		"busid":["03","05","06","07","09","0b","0c","0d"],
 #		"coin":"NEXA"
+#		"temp":[31,28,29,29,31,29,30,30],     #  unnecessary field if 'busid' is provided
+#		"temp2":[38,35,35,35,37,34,37,37],    #  unnecessary field if 'busid' is provided
+#		"temp3":[0,0,0,0,0,0,0,0],            #  unnecessary field if 'busid' is provided
+#		"fan":[45,45,44,45,44,44,45,46],      #  unnecessary field if 'busid' is provided
 #	}
 
-#echo '{"algo":"sha256","coin":"mrdn","busid":["03","05","06","07","09","0b","0c","0d"]}'
 
-busid=`cat /run/dog/gpuStats | jq '[.gpu[].b]'`
+baseDir=`dirname $0`
+[[ ! -f $baseDir/serveraddr.txt ]] && exit 1
+
+serverAddr=`cat $baseDir/serveraddr.txt`
+apiUrl=$serverAddr/stat
+API_TIMEOUT=5
+
+stats_template=`curl --connect-timeout 2 --max-time $API_TIMEOUT --silent --noproxy '*' $apiUrl`
+#echo $stats_template | jq '.'
+
+
 algo="SHA256"
 miner="miningPoolCli"
+ver="3.0.7"
 
 data=$(
 		jq -n \
-		--argjson busid "$busid" \
 		--arg algo "$algo" \
 		--arg miner "$miner" \
+    --arg ver "$ver" \
 		'{
 			$miner,
-			$algo,
-			$busid
+			$ver,
+			$algo
 		}'
 )
 
+if [[ `echo $stats_template | jq -r '.miner_uptime'` != null ]]; then
+  online_raw=`echo $stats_template | jq -r '.miner_uptime' | sed 's/\..*s//'`
+  [[ ! -z $online_raw ]] && online=$(date --date "-$online_raw sec" +%s)
+  data=`jq ". += {\"online\": \"$online\"}" <<< "$data"`
+fi
+
+if [[ `echo $stats_template | jq -r '.miner_uptime'` != null ]]; then
+  total_hr=`echo $stats_template | jq -r '.total_hashrate'`
+  data=`jq ". += {\"total_hr\": \"$total_hr\"}" <<< "$data"`
+fi
+
+if [[ `echo $stats_template | jq -r '.gpus'` != null ]]; then
+  hr=`echo $stats_template | jq '[.gpus[].hashrate]'`
+  data=`jq ". += {\"hr\": $hr}" <<< "$data"`
+
+  platform0_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "N")] | .[].b]'`
+  platform1_busids=`cat /run/dog/gpuStats | jq '[[.gpu[] | select(.brand == "N")] | .[].b]'`
+  gpuCount=`echo $stats_template | jq '.gpus| length'`
+  busid='[]'
+  for (( i=0; i < $gpuCount; i++ )); do
+    gpu=`echo $stats_template | jq ".gpus[$i]"`
+    platform_id=`echo $gpu | jq -r '.platform_id'`
+    device_id=`echo $gpu | jq -r '.device_id'`
+
+    if [[ $platform_id == 0 ]]; then
+      b=`echo $platform0_busids | jq -r ".[$device_id]"`
+    else
+      b=`echo $platform1_busids | jq -r ".[$device_id]"`
+    fi
+
+    busid=`jq ". += [\"$b\"]" <<< "$busid"`
+  done
+  data=`jq ". += {\"busid\": $busid}" <<< "$data"`
+
+fi
+
+
+#   finally return json data
 echo "$data" | jq -c
