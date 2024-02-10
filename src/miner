@@ -1,0 +1,38 @@
+#!/bin/bash
+####################################################################################
+###
+### GRAM miner for ton.ninja
+### os.dog integration: shatll(@osdog)
+###
+####################################################################################
+. /dog/colors
+cd `dirname $0`
+
+#	global variables, don`t change it
+####################################################################################
+#	The file contains the following variables:
+#	MINERNAME API_PORT CUSTOM_URL POOL PASS WALLET TEMPLATE COIN ADDITION
+CFG_FILENAME="miner.cfg"
+. $CFG_FILENAME
+
+#	custom package variables
+####################################################################################
+LOG="/dog/log/ton.ninja-miner.log"
+
+#	custom package body
+
+#	default values for miner
+args=$ADDITION
+[[ "$ADDITION" != *"-pool-id"* ]] && args+=" -pool-id $TEMPLATE"
+[[ "$ADDITION" != *"-url"* && $POOL ]] && args+=" -url $POOL"
+[[ "$ADDITION" != *"-serve-stat"* ]] && args+=" -serve-stat"
+
+pool-id
+batch="./miningPoolCli $args"
+$LINE
+echo -e "${GREEN}> Starting custom miner${WHITE}"
+echo "$batch"
+
+#	unbuffer is needed to keep colors with tee
+unbuffer $batch 2>&1 | tee --append $LOG
+
