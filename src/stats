@@ -42,7 +42,7 @@ stats_template=`curl --connect-timeout 2 --max-time $API_TIMEOUT --silent --nopr
 
 algo="SHA256"
 miner="miningPoolCli"
-ver="3.0.7"
+ver="3.1.0"
 
 data=$(
 		jq -n \
